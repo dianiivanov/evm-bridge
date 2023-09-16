@@ -1,13 +1,12 @@
 import {ethers} from "hardhat";
 
-export async function deployToken(tokenContractName: string) {
-    const TokenFactory = await ethers.getContractFactory(tokenContractName);
+export async function deploySourceToken() {
+    const TokenFactory = await ethers.getContractFactory("SourceToken");
     const tokenContract = await TokenFactory.deploy();
     await tokenContract.waitForDeployment();
 
-    const tx = await tokenContract.deploymentTransaction();
-    console.log(`The ${tokenContractName} contract is deployed to ${tokenContract.target}`);
-    console.log(`Owner=${tx?.from}, transaction hash: ${tx?.hash}`)
+    const tx = tokenContract.deploymentTransaction();
+    console.log(`The SourceToken contract is deployed to ${tokenContract.target}`);
     return tx;
 }
 
@@ -17,7 +16,7 @@ export async function deployBridge() {
     const bridgeContract = await BridgeFactory.deploy();
     await bridgeContract.waitForDeployment();
 
-    const tx = await bridgeContract.deploymentTransaction();
+    const tx = bridgeContract.deploymentTransaction();
     console.log(`The Bridge contract is deployed to ${bridgeContract.target}`);
     console.log(`Owner=${tx?.from}, transaction hash: ${tx?.hash}`)
     return tx;

@@ -5,6 +5,26 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./WrapperToken.sol";
 import "./SourceToken.sol";
 
+error InsufficientClaimableFunds(
+    address account,
+    address tokenAddress,
+    uint256 requested,
+    uint256 available
+);
+error TokenNotMapped(WrapperToken tokenAddress);
+error InsufficientTokenBalance(
+    address account,
+    address tokenAddress,
+    uint256 requested,
+    uint256 available
+);
+error InsufficientReleasableFunds(
+    address account,
+    address tokenAddress,
+    uint256 requested,
+    uint256 available
+);
+
 contract Bridge is Ownable {
     event TokenLocked(
         address indexed amountOwner,
@@ -39,10 +59,10 @@ contract Bridge is Ownable {
     mapping(address => address) public wrappedToBaseToken;
 
     //owner to target token to amount to be claimed
-    mapping(address => mapping(IERC20 => uint256)) public claimableFor;
+    mapping(address => mapping(address => uint256)) public claimableFor;
 
     //owner to target token to amount to be released
-    mapping(address => mapping(IERC20 => uint256)) public releasableFor;
+    mapping(address => mapping(address => uint256)) public releasableFor;
 
     //lock to the source bridge
     function lock(IERC20 tokenAddress, uint256 amount) public {
@@ -51,59 +71,71 @@ contract Bridge is Ownable {
     }
 
     //claim from the target bridge
-    function claim(IERC20 tokenAddress, uint256 amount) public {
-        uint256 tokensToClaim = claimableFor[msg.sender][tokenAddress];
-        require(amount <= tokensToClaim);
-
-        if (baseToWrappedToken[address(tokenAddress)] == address(0)) {
-            address newWrapperTokenAddress = address(new WrapperToken());
-            _addTokensMapping(address(tokenAddress), newWrapperTokenAddress);
-
-            emit WrappedTokenCreated(
-                address(tokenAddress),
-                newWrapperTokenAddress
+    function claim(address tokenAddress, uint256 amount) public {
+        uint256 availableToClaim = claimableFor[msg.sender][tokenAddress];
+        if (amount > availableToClaim) {
+            revert InsufficientClaimableFunds(
+                msg.sender,
+                tokenAddress,
+                amount,
+                availableToClaim
             );
         }
+        address wrappedToken = baseToWrappedToken[address(tokenAddress)];
+        if (wrappedToken == address(0)) {
+            wrappedToken = address(new WrapperToken());
+            _addTokensMapping(address(tokenAddress), wrappedToken);
 
-        WrapperToken(baseToWrappedToken[address(tokenAddress)]).mint(
-            msg.sender,
-            amount
-        );
+            emit WrappedTokenCreated(address(tokenAddress), wrappedToken);
+        }
+
+        WrapperToken(wrappedToken).mint(msg.sender, amount);
         claimableFor[msg.sender][tokenAddress] -= amount;
         emit TokenClaimed(
             msg.sender,
             address(tokenAddress),
-            address(baseToWrappedToken[address(tokenAddress)]),
+            wrappedToken,
             amount
         );
     }
 
     //burn form the target bridge
     function burn(WrapperToken tokenAddress, uint256 amount) public {
-        require(wrappedToBaseToken[address(tokenAddress)] != address(0));
-        require(tokenAddress.balanceOf(msg.sender) >= amount);
+        address baseToken = wrappedToBaseToken[address(tokenAddress)];
+        if (baseToken == address(0)) {
+            revert TokenNotMapped(tokenAddress);
+        }
+        if (tokenAddress.balanceOf(msg.sender) < amount) {
+            revert InsufficientTokenBalance(
+                msg.sender,
+                address(tokenAddress),
+                amount,
+                tokenAddress.balanceOf(msg.sender)
+            );
+        }
 
         tokenAddress.burn(msg.sender, amount);
-        emit TokenBurned(
-            msg.sender,
-            address(wrappedToBaseToken[address(tokenAddress)]),
-            address(tokenAddress),
-            amount
-        );
+        emit TokenBurned(msg.sender, baseToken, address(tokenAddress), amount);
     }
 
     //release from the target bridge
-    function release(IERC20 tokenAddress, uint256 amount) public {
-        uint256 releasableTokens = releasableFor[msg.sender][tokenAddress];
-        require(amount <= releasableTokens);
-        tokenAddress.transfer(msg.sender, amount);
+    function release(address tokenAddress, uint256 amount) public {
+        if (amount > releasableFor[msg.sender][tokenAddress]) {
+            revert InsufficientReleasableFunds(
+                msg.sender,
+                tokenAddress,
+                amount,
+                releasableFor[msg.sender][tokenAddress]
+            );
+        }
         releasableFor[msg.sender][tokenAddress] -= amount;
+        IERC20(tokenAddress).transfer(msg.sender, amount);
         emit TokenReleased(msg.sender, address(tokenAddress), amount);
     }
 
     function addClaim(
         address tokensOwner,
-        IERC20 tokenAddress,
+        address tokenAddress,
         uint256 amount
     ) public onlyOwner {
         claimableFor[tokensOwner][tokenAddress] += amount;
@@ -111,7 +143,7 @@ contract Bridge is Ownable {
 
     function addReleased(
         address tokensOwner,
-        IERC20 tokenAddress,
+        address tokenAddress,
         uint256 amount
     ) public onlyOwner {
         releasableFor[tokensOwner][tokenAddress] += amount;
@@ -123,12 +155,5 @@ contract Bridge is Ownable {
     ) private {
         baseToWrappedToken[sourceTokenAddress] = targetTokenAddress;
         wrappedToBaseToken[targetTokenAddress] = sourceTokenAddress;
-    }
-
-    function addTokensMapping(
-        address sourceTokenAddress,
-        address targetTokenAddress
-    ) private onlyOwner {
-        _addTokensMapping(sourceTokenAddress, targetTokenAddress);
     }
 }

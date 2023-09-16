@@ -49,12 +49,11 @@ const lazyImport = async (module: any) => {
   return await import(module);
 }
 
-task("deploy-token", "Deploy a token by contract name")
-.addParam("contractName", "Please provide the contract name")
+task("deploy-source-token", "Deploy a source token contract")
 .setAction(async (args, hre) => {
   await hre.run('compile');
-  const{ deployToken } = await lazyImport("./scripts/deploy");
-  await deployToken(args.contractName);
+  const{ deploySourceToken } = await lazyImport("./scripts/deploy");
+  await deploySourceToken();
 });
 
 task("deploy-bridge", "Deploy a bridge")
@@ -63,25 +62,38 @@ task("deploy-bridge", "Deploy a bridge")
   const{ deployBridge } = await lazyImport("./scripts/deploy");
   await deployBridge();
 });
-// task("deploy-and-verify", "Deploy BookLibrary").setAction(async (args, hre) => {
-//   await hre.run('compile');
-//   const{ deployBookLibrary } = await lazyImport("./scripts/deploy-booklibrary");
-//   const tx = await deployBookLibrary();
-//   const receipt = await tx?.wait(5);
-//   console.log("verifying contract: ", receipt.contractAddress);
-//   try {
-//       await hre.run("verify:verify", {
-//           address: receipt.contractAddress,
-//           constructorArguments: [],
-//       });
-//       console.log("Verified");
-//   } catch (e: any) {
-//       if(e.message.toLowerCase().includes("already verified")) {
-//           console.log("Already verified!");
-//       } else {
-//           console.log(e);
-//       }
-//   }
-// });
 
+task("deploy-verify-source-token", "Deploy and verify source token contract").setAction(async (args, hre) => {
+  await hre.run('compile');
+  const{ deploySourceToken } = await lazyImport("./scripts/deploy");
+  const tx = await deploySourceToken();
+  const receipt = await tx?.wait(5);
+  verifyContract(hre, receipt.contractAddress);
+});
+
+task("deploy-verify-bridge", "Deploy and verify a bridge")
+.setAction(async (args, hre) => {
+  await hre.run('compile');
+  const{ deployBridge } = await lazyImport("./scripts/deploy");
+  const tx = await deployBridge();
+  const receipt = await tx?.wait(5);
+  verifyContract(hre, receipt.contractAddress);
+});
+
+const verifyContract = async(hre: any, contractAddress: any) => {
+  console.log("verifying contract: ", contractAddress);
+  try {
+      await hre.run("verify:verify", {
+          address: contractAddress,
+          constructorArguments: [],
+      });
+      console.log("Verified");
+  } catch (e: any) {
+      if(e.message.toLowerCase().includes("already verified")) {
+          console.log("Already verified!");
+      } else {
+          console.log(e);
+      }
+  }
+}
 export default config;
