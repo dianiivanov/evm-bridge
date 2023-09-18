@@ -67,7 +67,7 @@ contract Bridge is Ownable {
     //lock to the source bridge - passing the source's tokenAddress
     function lock(address tokenAddress, uint256 amount) public {
         IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
-        emit TokenLocked(msg.sender, address(tokenAddress), amount);
+        emit TokenLocked(msg.sender, tokenAddress, amount);
     }
 
     //claim from the target bridge based on the source's tokenAddress
@@ -84,9 +84,9 @@ contract Bridge is Ownable {
         address wrappedToken = baseToWrapperToken[tokenAddress];
         if (wrappedToken == address(0)) {
             wrappedToken = address(new WrapperToken());
-            _addTokensMapping(address(tokenAddress), wrappedToken);
+            _addTokensMapping(tokenAddress, wrappedToken);
 
-            emit WrappedTokenCreated(address(tokenAddress), wrappedToken);
+            emit WrappedTokenCreated(tokenAddress, wrappedToken);
         }
         claimableFor[msg.sender][tokenAddress] -= amount;
         WrapperToken(wrappedToken).mint(msg.sender, amount);
@@ -95,7 +95,7 @@ contract Bridge is Ownable {
 
     //burn form the target bridge - based on the target's wrapped token
     function burn(address wrapperTokenAddress, uint256 amount) external {
-        address baseToken = wrapperToBaseToken[address(wrapperTokenAddress)];
+        address baseToken = wrapperToBaseToken[wrapperTokenAddress];
         if (baseToken == address(0)) {
             revert TokenNotMapped(wrapperTokenAddress);
         }
@@ -125,7 +125,7 @@ contract Bridge is Ownable {
         }
         releasableFor[msg.sender][tokenAddress] -= amount;
         IERC20(tokenAddress).transfer(msg.sender, amount);
-        emit TokenReleased(msg.sender, address(tokenAddress), amount);
+        emit TokenReleased(msg.sender, tokenAddress, amount);
     }
 
     function addClaim(
