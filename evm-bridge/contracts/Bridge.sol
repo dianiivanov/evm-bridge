@@ -25,6 +25,11 @@ error InsufficientReleasableFunds(
     uint256 available
 );
 
+/*
+ * @title Bridge - Decentralized Token Bridge Contract
+ * @notice The Bridge contract provides functions for locking, claiming, burning, and releasing tokens.
+ * @dev This bridge utilizes both base and wrapper tokens to manage cross-chain transfers.
+ */
 contract Bridge is Ownable {
     event TokenLocked(
         address indexed amountOwner,
@@ -54,6 +59,21 @@ contract Bridge is Ownable {
         address indexed targetTokenAddress
     );
 
+    event TokensToBeReleasedAdded(
+        address indexed tokensOwnerAddress,
+        address indexed sourceTokenAddress,
+        address indexed targetTokenAddress,
+        uint256 amountAdded,
+        uint256 newAmount
+    );
+
+    event TokensToBeClaimedAdded(
+        address indexed tokensOwnerAddress,
+        address indexed sourceTokenAddress,
+        uint256 amountAdded,
+        uint256 newAmount
+    );
+
     //bi-directional mapping
     mapping(address => address) public baseToWrapperToken;
     mapping(address => address) public wrapperToBaseToken;
@@ -64,13 +84,21 @@ contract Bridge is Ownable {
     //owner to target token to amount to be released
     mapping(address => mapping(address => uint256)) public releasableFor;
 
-    //lock to the source bridge - passing the source's tokenAddress
+    /*
+     * @notice Locks tokens in the bridge.
+     * @param tokenAddress Address of the source token to lock.
+     * @param amount Amount of source tokens to lock.
+     */
     function lock(address tokenAddress, uint256 amount) public {
         IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
         emit TokenLocked(msg.sender, tokenAddress, amount);
     }
 
-    //claim from the target bridge based on the source's tokenAddress
+    /* @dev Internally deploys a new WrapperToken for the given sourceToken, if does not exist
+     * @notice Claims tokens from the target chain based on source tokens locked on the source chain.
+     * @param tokenAddress Address of the source token.
+     * @param amount Amount of tokens to claim.
+     */
     function claim(address tokenAddress, uint256 amount) external {
         uint256 availableToClaim = claimableFor[msg.sender][tokenAddress];
         if (amount > availableToClaim) {
@@ -93,7 +121,11 @@ contract Bridge is Ownable {
         emit TokenClaimed(msg.sender, tokenAddress, wrappedToken, amount);
     }
 
-    //burn form the target bridge - based on the target's wrapped token
+    /*
+     * @notice Burns wrapped tokens on the target chain.
+     * @param wrapperTokenAddress Address of the wrapped token.
+     * @param amount Amount of wrapped tokens to burn.
+     */
     function burn(address wrapperTokenAddress, uint256 amount) external {
         address baseToken = wrapperToBaseToken[wrapperTokenAddress];
         if (baseToken == address(0)) {
@@ -113,7 +145,11 @@ contract Bridge is Ownable {
         emit TokenBurned(msg.sender, baseToken, wrapperTokenAddress, amount);
     }
 
-    //release from the source bridge - based on the source's tokenAddress
+    /*
+     * @notice Releases source tokens that were burnt on the target chain.
+     * @param tokenAddress Address of the source token.
+     * @param amount Amount of source tokens to release.
+     */
     function release(address tokenAddress, uint256 amount) external {
         if (amount > releasableFor[msg.sender][tokenAddress]) {
             revert InsufficientReleasableFunds(
@@ -128,22 +164,54 @@ contract Bridge is Ownable {
         emit TokenReleased(msg.sender, tokenAddress, amount);
     }
 
+    /*
+     * @dev Must be executed on the target chain after tokens were locked with a specific amount on the source chain
+     * @notice Adds an amount to the claimable balance of a specific user.
+     * @param tokensOwner Address of the user.
+     * @param tokenAddress Address of the source token.
+     * @param amount Amount of tokens to add.
+     */
     function addClaim(
         address tokensOwner,
         address tokenAddress,
         uint256 amount
     ) external onlyOwner {
         claimableFor[tokensOwner][tokenAddress] += amount;
+        emit TokensToBeClaimedAdded(
+            tokensOwner,
+            tokenAddress,
+            amount,
+            claimableFor[tokensOwner][tokenAddress]
+        );
     }
 
+    /*
+     * @dev Must be executed on the source chain after tokens were burnt with a specific amount on the target chain
+     * @notice Adds an amount to the releasable balance of a specific user.
+     * @param tokensOwner Address of the user.
+     * @param tokenAddress Address of the source token.
+     * @param amount Amount of tokens to add.
+     */
     function addReleased(
         address tokensOwner,
         address tokenAddress,
         uint256 amount
     ) external onlyOwner {
         releasableFor[tokensOwner][tokenAddress] += amount;
+        emit TokensToBeReleasedAdded(
+            tokensOwner,
+            tokenAddress,
+            wrapperToBaseToken[tokenAddress],
+            amount,
+            claimableFor[tokensOwner][tokenAddress]
+        );
     }
 
+    /*
+     * @dev Private function to add mapping for source and target tokens.
+     * @param sourceTokenAddress Address of the source token.
+     * @param targetTokenAddress Address of the target token(wrapper token).
+     */
     function _addTokensMapping(
         address sourceTokenAddress,
         address targetTokenAddress
