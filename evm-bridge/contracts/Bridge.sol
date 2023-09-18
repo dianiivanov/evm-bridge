@@ -11,7 +11,7 @@ error InsufficientClaimableFunds(
     uint256 requested,
     uint256 available
 );
-error TokenNotMapped(WrapperToken tokenAddress);
+error TokenNotMapped(address wrapperTokenAddress);
 error InsufficientTokenBalance(
     address account,
     address tokenAddress,
@@ -55,8 +55,8 @@ contract Bridge is Ownable {
     );
 
     //bi-directional mapping
-    mapping(address => address) public baseToWrappedToken;
-    mapping(address => address) public wrappedToBaseToken;
+    mapping(address => address) public baseToWrapperToken;
+    mapping(address => address) public wrapperToBaseToken;
 
     //owner to target token to amount to be claimed
     mapping(address => mapping(address => uint256)) public claimableFor;
@@ -64,14 +64,14 @@ contract Bridge is Ownable {
     //owner to target token to amount to be released
     mapping(address => mapping(address => uint256)) public releasableFor;
 
-    //lock to the source bridge
-    function lock(IERC20 tokenAddress, uint256 amount) public {
-        tokenAddress.transferFrom(msg.sender, address(this), amount);
+    //lock to the source bridge - passing the source's tokenAddress
+    function lock(address tokenAddress, uint256 amount) public {
+        IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
         emit TokenLocked(msg.sender, address(tokenAddress), amount);
     }
 
-    //claim from the target bridge
-    function claim(address tokenAddress, uint256 amount) public {
+    //claim from the target bridge based on the source's tokenAddress
+    function claim(address tokenAddress, uint256 amount) external {
         uint256 availableToClaim = claimableFor[msg.sender][tokenAddress];
         if (amount > availableToClaim) {
             revert InsufficientClaimableFunds(
@@ -81,45 +81,40 @@ contract Bridge is Ownable {
                 availableToClaim
             );
         }
-        address wrappedToken = baseToWrappedToken[address(tokenAddress)];
+        address wrappedToken = baseToWrapperToken[tokenAddress];
         if (wrappedToken == address(0)) {
             wrappedToken = address(new WrapperToken());
             _addTokensMapping(address(tokenAddress), wrappedToken);
 
             emit WrappedTokenCreated(address(tokenAddress), wrappedToken);
         }
-
-        WrapperToken(wrappedToken).mint(msg.sender, amount);
         claimableFor[msg.sender][tokenAddress] -= amount;
-        emit TokenClaimed(
-            msg.sender,
-            address(tokenAddress),
-            wrappedToken,
-            amount
-        );
+        WrapperToken(wrappedToken).mint(msg.sender, amount);
+        emit TokenClaimed(msg.sender, tokenAddress, wrappedToken, amount);
     }
 
-    //burn form the target bridge
-    function burn(WrapperToken tokenAddress, uint256 amount) public {
-        address baseToken = wrappedToBaseToken[address(tokenAddress)];
+    //burn form the target bridge - based on the target's wrapped token
+    function burn(address wrapperTokenAddress, uint256 amount) external {
+        address baseToken = wrapperToBaseToken[address(wrapperTokenAddress)];
         if (baseToken == address(0)) {
-            revert TokenNotMapped(tokenAddress);
+            revert TokenNotMapped(wrapperTokenAddress);
         }
-        if (tokenAddress.balanceOf(msg.sender) < amount) {
+        WrapperToken wrapperToken = WrapperToken(wrapperTokenAddress);
+        if (wrapperToken.balanceOf(msg.sender) < amount) {
             revert InsufficientTokenBalance(
                 msg.sender,
-                address(tokenAddress),
+                wrapperTokenAddress,
                 amount,
-                tokenAddress.balanceOf(msg.sender)
+                wrapperToken.balanceOf(msg.sender)
             );
         }
 
-        tokenAddress.burn(msg.sender, amount);
-        emit TokenBurned(msg.sender, baseToken, address(tokenAddress), amount);
+        wrapperToken.burn(msg.sender, amount);
+        emit TokenBurned(msg.sender, baseToken, wrapperTokenAddress, amount);
     }
 
-    //release from the target bridge
-    function release(address tokenAddress, uint256 amount) public {
+    //release from the source bridge - based on the source's tokenAddress
+    function release(address tokenAddress, uint256 amount) external {
         if (amount > releasableFor[msg.sender][tokenAddress]) {
             revert InsufficientReleasableFunds(
                 msg.sender,
@@ -137,7 +132,7 @@ contract Bridge is Ownable {
         address tokensOwner,
         address tokenAddress,
         uint256 amount
-    ) public onlyOwner {
+    ) external onlyOwner {
         claimableFor[tokensOwner][tokenAddress] += amount;
     }
 
@@ -145,7 +140,7 @@ contract Bridge is Ownable {
         address tokensOwner,
         address tokenAddress,
         uint256 amount
-    ) public onlyOwner {
+    ) external onlyOwner {
         releasableFor[tokensOwner][tokenAddress] += amount;
     }
 
@@ -153,7 +148,7 @@ contract Bridge is Ownable {
         address sourceTokenAddress,
         address targetTokenAddress
     ) private {
-        baseToWrappedToken[sourceTokenAddress] = targetTokenAddress;
-        wrappedToBaseToken[targetTokenAddress] = sourceTokenAddress;
+        baseToWrapperToken[sourceTokenAddress] = targetTokenAddress;
+        wrapperToBaseToken[targetTokenAddress] = sourceTokenAddress;
     }
 }
