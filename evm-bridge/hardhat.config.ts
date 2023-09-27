@@ -50,10 +50,12 @@ const lazyImport = async (module: any) => {
 }
 
 task("deploy-source-token", "Deploy a source token contract")
+.addParam("tokenName", "Please provide the name of the token")
+.addParam("tokenSymbol", "Please provide the symbol of the token")
 .setAction(async (args, hre) => {
   await hre.run('compile');
   const{ deploySourceToken } = await lazyImport("./scripts/deploy");
-  await deploySourceToken();
+  await deploySourceToken(args.tokenName, args.tokenSymbol);
 });
 
 task("deploy-bridge", "Deploy a bridge")

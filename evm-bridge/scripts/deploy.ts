@@ -1,8 +1,8 @@
 import {ethers} from "hardhat";
 
-export async function deploySourceToken() {
+export async function deploySourceToken(tokenName:string, tokenSymbol:string) {
     const TokenFactory = await ethers.getContractFactory("SourceToken");
-    const tokenContract = await TokenFactory.deploy();
+    const tokenContract = await TokenFactory.deploy(tokenName, tokenSymbol);
     await tokenContract.waitForDeployment();
 
     const tx = tokenContract.deploymentTransaction();

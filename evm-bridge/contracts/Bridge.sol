@@ -96,29 +96,30 @@ contract Bridge is Ownable {
 
     /* @dev Internally deploys a new WrapperToken for the given sourceToken, if does not exist
      * @notice Claims tokens from the target chain based on source tokens locked on the source chain.
-     * @param tokenAddress Address of the source token.
+     * @param wrapperTokenAddress Address of the wrapper token.
      * @param amount Amount of tokens to claim.
      */
-    function claim(address tokenAddress, uint256 amount) external {
-        uint256 availableToClaim = claimableFor[msg.sender][tokenAddress];
+    function claim(address wrapperTokenAddress, uint256 amount) external {
+        uint256 availableToClaim = claimableFor[msg.sender][
+            wrapperTokenAddress
+        ];
         if (amount > availableToClaim) {
             revert InsufficientClaimableFunds(
                 msg.sender,
-                tokenAddress,
+                wrapperTokenAddress,
                 amount,
                 availableToClaim
             );
         }
-        address wrappedToken = baseToWrapperToken[tokenAddress];
-        if (wrappedToken == address(0)) {
-            wrappedToken = address(new WrapperToken());
-            _addTokensMapping(tokenAddress, wrappedToken);
 
-            emit WrappedTokenCreated(tokenAddress, wrappedToken);
-        }
-        claimableFor[msg.sender][tokenAddress] -= amount;
-        WrapperToken(wrappedToken).mint(msg.sender, amount);
-        emit TokenClaimed(msg.sender, tokenAddress, wrappedToken, amount);
+        claimableFor[msg.sender][wrapperTokenAddress] -= amount;
+        WrapperToken(wrapperTokenAddress).mint(msg.sender, amount);
+        emit TokenClaimed(
+            msg.sender,
+            wrapperToBaseToken[wrapperTokenAddress],
+            wrapperTokenAddress,
+            amount
+        );
     }
 
     /*
@@ -168,20 +169,35 @@ contract Bridge is Ownable {
      * @dev Must be executed on the target chain after tokens were locked with a specific amount on the source chain
      * @notice Adds an amount to the claimable balance of a specific user.
      * @param tokensOwner Address of the user.
-     * @param tokenAddress Address of the source token.
-     * @param amount Amount of tokens to add.
+     * @param wrapperTokenAddress Address of the wrapper token.
+     * @param amount Amount of tokens to add that can be claimed from the target bridge.
      */
     function addClaim(
         address tokensOwner,
-        address tokenAddress,
-        uint256 amount
+        address sourceTokenAddress,
+        uint256 amount,
+        string memory sourceTokenName,
+        string memory sourceTokenSymbol
     ) external onlyOwner {
-        claimableFor[tokensOwner][tokenAddress] += amount;
+        address wrappedTokenAddress = baseToWrapperToken[sourceTokenAddress];
+        if (wrappedTokenAddress == address(0)) {
+            wrappedTokenAddress = address(
+                new WrapperToken(
+                    string.concat("Wrapper_", sourceTokenName),
+                    string.concat("WRP_", sourceTokenSymbol)
+                )
+            );
+            _addTokensMapping(sourceTokenAddress, wrappedTokenAddress);
+
+            emit WrappedTokenCreated(sourceTokenAddress, wrappedTokenAddress);
+        }
+
+        claimableFor[tokensOwner][wrappedTokenAddress] += amount;
         emit TokensToBeClaimedAdded(
             tokensOwner,
-            tokenAddress,
+            wrappedTokenAddress,
             amount,
-            claimableFor[tokensOwner][tokenAddress]
+            claimableFor[tokensOwner][wrappedTokenAddress]
         );
     }
 
@@ -192,7 +208,7 @@ contract Bridge is Ownable {
      * @param tokenAddress Address of the source token.
      * @param amount Amount of tokens to add.
      */
-    function addReleased(
+    function addRelease(
         address tokensOwner,
         address tokenAddress,
         uint256 amount
