@@ -54,7 +54,7 @@ contract Bridge is Ownable {
         uint256 amount
     );
 
-    event WrappedTokenCreated(
+    event WrapperTokenCreated(
         address indexed sourceTokenAddress,
         address indexed targetTokenAddress
     );
@@ -62,7 +62,6 @@ contract Bridge is Ownable {
     event TokensToBeReleasedAdded(
         address indexed tokensOwnerAddress,
         address indexed sourceTokenAddress,
-        address indexed targetTokenAddress,
         uint256 amountAdded,
         uint256 newAmount
     );
@@ -130,11 +129,10 @@ contract Bridge is Ownable {
      * @param wrapperTokenAddress Address of the wrapped token.
      * @param amount Amount of wrapped tokens to burn.
      */
-    function burn(address wrapperTokenAddress, uint256 amount) external {
-        address baseToken = wrapperToBaseToken[wrapperTokenAddress];
-        if (baseToken == address(0)) {
-            revert TokenNotMapped(wrapperTokenAddress);
-        }
+    function burn(
+        address wrapperTokenAddress,
+        uint256 amount
+    ) external onlyForMappedWrapperTopken(wrapperTokenAddress) {
         WrapperToken wrapperToken = WrapperToken(wrapperTokenAddress);
         if (wrapperToken.balanceOf(msg.sender) < amount) {
             revert InsufficientTokenBalance(
@@ -146,7 +144,12 @@ contract Bridge is Ownable {
         }
 
         wrapperToken.burn(msg.sender, amount);
-        emit TokenBurned(msg.sender, baseToken, wrapperTokenAddress, amount);
+        emit TokenBurned(
+            msg.sender,
+            wrapperToBaseToken[wrapperTokenAddress],
+            wrapperTokenAddress,
+            amount
+        );
     }
 
     /*
@@ -192,7 +195,7 @@ contract Bridge is Ownable {
             );
             _addTokensMapping(sourceTokenAddress, wrappedTokenAddress);
 
-            emit WrappedTokenCreated(sourceTokenAddress, wrappedTokenAddress);
+            emit WrapperTokenCreated(sourceTokenAddress, wrappedTokenAddress);
         }
 
         claimableFor[tokensOwner][wrappedTokenAddress] += amount;
@@ -220,9 +223,8 @@ contract Bridge is Ownable {
         emit TokensToBeReleasedAdded(
             tokensOwner,
             tokenAddress,
-            wrapperToBaseToken[tokenAddress],
             amount,
-            claimableFor[tokensOwner][tokenAddress]
+            releasableFor[tokensOwner][tokenAddress]
         );
     }
 
