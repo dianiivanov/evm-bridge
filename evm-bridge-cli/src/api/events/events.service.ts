@@ -157,8 +157,10 @@ export class EventService {
     const result = await this.tokenLockedRepository
       .createQueryBuilder("tokenLocked")
       .select('tokenLocked.lockedTokenAddress', "bridgedTokenAddress").distinct(true)
+      .addSelect('sum(tokenLocked.amount)', 'allTokensAmount')
       .where("LOWER(tokenLocked.amountOwner) = LOWER(:walletAddress)", { walletAddress: walletAddress })
       .andWhere("tokenLocked.blockchainName = :blockchainName", { blockchainName: blockchainName })
+      .groupBy('tokenLocked.lockedTokenAddress')
       .getRawMany();
 
     return result;
@@ -167,8 +169,10 @@ export class EventService {
   async findAllBridgedTokensByBlockchain(blockchainName: string): Promise<TokenLocked[]> {
     const result = await this.tokenLockedRepository
       .createQueryBuilder("tokenLocked")
-      .select('tokenLocked.lockedTokenAddress', "bridgedTokenAddress").distinct(true)
+      .select('tokenLocked.lockedTokenAddress', "bridgedTokenAddress")
+      .addSelect('sum(tokenLocked.amount)', 'allTokensAmount')
       .where("tokenLocked.blockchainName = :blockchainName", { blockchainName: blockchainName })
+      .groupBy('tokenLocked.lockedTokenAddress')
       .getRawMany();
 
     return result;

@@ -99,7 +99,10 @@ contract Bridge is Ownable {
      * @param wrapperTokenAddress Address of the wrapper token.
      * @param amount Amount of tokens to claim.
      */
-    function claim(address wrapperTokenAddress, uint256 amount) external {
+    function claim(
+        address wrapperTokenAddress,
+        uint256 amount
+    ) external onlyForMappedWrapperTopken(wrapperTokenAddress) {
         uint256 availableToClaim = claimableFor[msg.sender][
             wrapperTokenAddress
         ];
@@ -234,5 +237,13 @@ contract Bridge is Ownable {
     ) private {
         baseToWrapperToken[sourceTokenAddress] = targetTokenAddress;
         wrapperToBaseToken[targetTokenAddress] = sourceTokenAddress;
+    }
+
+    modifier onlyForMappedWrapperTopken(address wrapperTokenAddress) {
+        address baseToken = wrapperToBaseToken[wrapperTokenAddress];
+        if (baseToken == address(0)) {
+            revert TokenNotMapped(wrapperTokenAddress);
+        }
+        _;
     }
 }
