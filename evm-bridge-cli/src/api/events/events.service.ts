@@ -90,9 +90,6 @@ export class EventService {
       ...claimedSubQuery.getParameters()
     };
 
-    console.log(allParameters);
-    console.log(lockedSubQuery.getParameters());
-    console.log(claimedSubQuery.getParameters());
     const result = await this.tokenLockedRepository.manager
       .createQueryBuilder()
       .select('"locked"."tokenAddress"', "tokenAddress")
@@ -157,7 +154,7 @@ export class EventService {
     const result = await this.tokenLockedRepository
       .createQueryBuilder("tokenLocked")
       .select('tokenLocked.lockedTokenAddress', "bridgedTokenAddress").distinct(true)
-      .addSelect('sum(tokenLocked.amount)', 'allTokensAmount')
+      .addSelect('sum(tokenLocked.amount)', 'bridgedAmount')
       .where("LOWER(tokenLocked.amountOwner) = LOWER(:walletAddress)", { walletAddress: walletAddress })
       .andWhere("tokenLocked.blockchainName = :blockchainName", { blockchainName: blockchainName })
       .groupBy('tokenLocked.lockedTokenAddress')
@@ -170,7 +167,7 @@ export class EventService {
     const result = await this.tokenLockedRepository
       .createQueryBuilder("tokenLocked")
       .select('tokenLocked.lockedTokenAddress', "bridgedTokenAddress")
-      .addSelect('sum(tokenLocked.amount)', 'allTokensAmount')
+      .addSelect('sum(tokenLocked.amount)', 'bridgedAmount')
       .where("tokenLocked.blockchainName = :blockchainName", { blockchainName: blockchainName })
       .groupBy('tokenLocked.lockedTokenAddress')
       .getRawMany();
