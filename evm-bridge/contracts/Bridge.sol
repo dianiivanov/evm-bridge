@@ -88,8 +88,25 @@ contract Bridge is Ownable {
      * @param tokenAddress Address of the source token to lock.
      * @param amount Amount of source tokens to lock.
      */
-    function lock(address tokenAddress, uint256 amount) public {
-        IERC20(tokenAddress).transferFrom(msg.sender, address(this), amount);
+    function lock(
+        address tokenAddress,
+        uint256 amount,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) public {
+        ERC20Permit sourceToken = ERC20Permit(tokenAddress);
+        sourceToken.permit(
+            msg.sender,
+            address(this),
+            amount,
+            deadline,
+            v,
+            r,
+            s
+        );
+        sourceToken.transferFrom(msg.sender, address(this), amount);
         emit TokenLocked(msg.sender, tokenAddress, amount);
     }
 

@@ -1,6 +1,9 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InterfaceAbi, ethers, Wallet } from 'ethers';
+// import { keccak256, defaultAbiCoder, toUtf8Bytes, solidityPack } from 'ethers-utils';
+import { TypedDataDomain } from 'ethers'
+
 import { Bridge__factory, ERC20__factory, SourceToken__factory } from '../typechain-types';
 import BigNumber from 'bignumber.js';
 
@@ -53,7 +56,8 @@ export class BlockchainService implements OnModuleInit {
     const wallet = new ethers.Wallet(pk, provider);
     return {
       bridgeContract: this.blockchains[blockchainName].bridgeContract.connect(wallet),
-      walletAddress: wallet.address
+      // walletAddress: wallet.address,
+      wallet
     }
   }
 
@@ -78,14 +82,65 @@ export class BlockchainService implements OnModuleInit {
   }
 
   public async lock(blockchainName: string, tokenAddress: string, amount: string, privateKey: string) {
-    const { bridgeContract } = this.getAndConnectBridgeContract(blockchainName, privateKey);
-    const { tokenName, tokenSymbol } = await this.getTokenNameAndSymbol(blockchainName, tokenAddress, privateKey);
+    const { bridgeContract, wallet } = this.getAndConnectBridgeContract(blockchainName, privateKey);
+    const { tokenContract, tokenName, tokenSymbol } = await this.getTokenNameAndSymbol(blockchainName, tokenAddress, privateKey);
 
-    console.log(`Approving ${blockchainName}'s bridge with address ${bridgeContract.target} to use token ${tokenName} ${amount}${tokenSymbol}...`);
-    await this.approve(blockchainName, tokenAddress, this.getBridgeAddress(blockchainName), amount, privateKey);
-    console.log(`Approved ${amount}${tokenSymbol}!`);
+    const nonce = await tokenContract.nonces(wallet.address);
+    const deadline = + new Date() + 60 * 60;
+    const eip712Domain = [
+      { name: 'name', type: 'string' },
+      { name: 'version', type: 'string' },
+      { name: 'verifyingContract', type: 'address' }
+    ];
+    const domain: TypedDataDomain = {
+      name: tokenName,
+      version: '1',
+      verifyingContract: tokenAddress
+    };
+
+    const permit = [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'nonce', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' }
+    ];
+
+    const message = {
+      owner: wallet.address, // Wallet Address
+      spender: bridgeContract.address, // **This is the address of the spender whe want to give permit to.**
+      value: amount,
+      nonce: nonce.toHexString(),
+      deadline
+    };
+
+    const data = JSON.stringify({
+      types: {
+        eip712Domain,
+        permit
+      },
+      domain,
+      primaryType: 'Permit',
+      message
+    });
+
+
+    const signatureLike = await wallet.signTypedData(domain, { permit }, message);
+
+    const splitSig = ethers.Signature.from(signatureLike);
+
+    const preparedSignature = {
+      deadline,
+      v: splitSig.v,
+      r: splitSig.r,
+      s: splitSig.s
+    };
+    //._signTypedData(domain, { Permit }, message);
+
+
+
     console.log(`Locking ${amount}${tokenSymbol} to ${blockchainName}'s bridge...`);
-    const transaction = await bridgeContract.lock(tokenAddress, amount);
+    const transaction = await bridgeContract.lock(tokenAddress, amount, preparedSignature);
     await transaction.wait();
     console.log(`Successfully locked ${amount}${tokenSymbol} to the ${blockchainName}'s bridge!`);
   }
@@ -145,25 +200,25 @@ export class BlockchainService implements OnModuleInit {
   }
 
   public async logReleasableFor(blockchainName: string, tokenAddress: string, publicKey: string, privateKey: string) {
-    const { bridgeContract, walletAddress } = this.getAndConnectBridgeContract(blockchainName, privateKey);
+    const { bridgeContract, wallet } = this.getAndConnectBridgeContract(blockchainName, privateKey);
     const { tokenContract } = this.getAndConnectTokenContract(blockchainName, tokenAddress, privateKey, ERC20__factory.abi);
     const tokenName = await tokenContract.name();
     const tokenSymbol = await tokenContract.symbol();
 
-    const amountAbleToRelease = await bridgeContract.releasableFor(publicKey ? publicKey : walletAddress, tokenAddress);
+    const amountAbleToRelease = await bridgeContract.releasableFor(publicKey ? publicKey : wallet.address, tokenAddress);
 
-    console.log(`${tokenName} releasable balance for user with address ${walletAddress} is ${amountAbleToRelease}${tokenSymbol}`)
+    console.log(`${tokenName} releasable balance for user with address ${wallet.address} is ${amountAbleToRelease}${tokenSymbol}`)
   }
 
   public async logClaimableFor(blockchainName: string, tokenAddress: string, publicKey: string, privateKey: string) {
-    const { bridgeContract, walletAddress } = this.getAndConnectBridgeContract(blockchainName, privateKey);
+    const { bridgeContract, wallet } = this.getAndConnectBridgeContract(blockchainName, privateKey);
     const { tokenContract, } = this.getAndConnectTokenContract(this.getOppositeBlockchain(blockchainName), tokenAddress, privateKey, ERC20__factory.abi);
     const tokenName = await tokenContract.name();
     const tokenSymbol = await tokenContract.symbol();
 
-    const amountAbleToRelease = await bridgeContract.claimableFor(publicKey ? publicKey : walletAddress, tokenAddress);
+    const amountAbleToRelease = await bridgeContract.claimableFor(publicKey ? publicKey : wallet.address, tokenAddress);
 
-    console.log(`${tokenName} claimable balance for user with address ${walletAddress} is ${amountAbleToRelease}${tokenSymbol}`)
+    console.log(`${tokenName} claimable balance for user with address ${wallet.address} is ${amountAbleToRelease}${tokenSymbol}`)
   }
 
   public async handleTokenLockedEvent(blockchainName: string, amountOwner: string, lockedTokenAddress: string, amount: BigNumber) {
@@ -224,7 +279,7 @@ export class BlockchainService implements OnModuleInit {
     const { tokenContract, } = this.getAndConnectTokenContract(blockchainName, tokenAddress, privateKey, ERC20__factory.abi);
     const tokenName = await tokenContract.name();
     const tokenSymbol = await tokenContract.symbol();
-    return { tokenName, tokenSymbol };
+    return { tokenContract, tokenName, tokenSymbol };
   }
 
   public getOppositeBlockchain(blockchainName: string): string {
