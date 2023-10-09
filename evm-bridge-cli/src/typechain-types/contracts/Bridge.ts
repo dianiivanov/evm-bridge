@@ -50,7 +50,7 @@ export interface BridgeInterface extends Interface {
       | "TokenReleased"
       | "TokensToBeClaimedAdded"
       | "TokensToBeReleasedAdded"
-      | "WrappedTokenCreated"
+      | "WrapperTokenCreated"
   ): EventFragment;
 
   encodeFunctionData(
@@ -79,7 +79,14 @@ export interface BridgeInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "lock",
-    values: [AddressLike, BigNumberish]
+    values: [
+      AddressLike,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      BytesLike,
+      BytesLike
+    ]
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
@@ -272,21 +279,18 @@ export namespace TokensToBeReleasedAddedEvent {
   export type InputTuple = [
     tokensOwnerAddress: AddressLike,
     sourceTokenAddress: AddressLike,
-    targetTokenAddress: AddressLike,
     amountAdded: BigNumberish,
     newAmount: BigNumberish
   ];
   export type OutputTuple = [
     tokensOwnerAddress: string,
     sourceTokenAddress: string,
-    targetTokenAddress: string,
     amountAdded: bigint,
     newAmount: bigint
   ];
   export interface OutputObject {
     tokensOwnerAddress: string;
     sourceTokenAddress: string;
-    targetTokenAddress: string;
     amountAdded: bigint;
     newAmount: bigint;
   }
@@ -296,7 +300,7 @@ export namespace TokensToBeReleasedAddedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace WrappedTokenCreatedEvent {
+export namespace WrapperTokenCreatedEvent {
   export type InputTuple = [
     sourceTokenAddress: AddressLike,
     targetTokenAddress: AddressLike
@@ -361,7 +365,7 @@ export interface Bridge extends BaseContract {
   addClaim: TypedContractMethod<
     [
       tokensOwner: AddressLike,
-      wrapperTokenAddress: AddressLike,
+      sourceTokenAddress: AddressLike,
       amount: BigNumberish,
       sourceTokenName: string,
       sourceTokenSymbol: string
@@ -401,7 +405,14 @@ export interface Bridge extends BaseContract {
   >;
 
   lock: TypedContractMethod<
-    [tokenAddress: AddressLike, amount: BigNumberish],
+    [
+      tokenAddress: AddressLike,
+      amount: BigNumberish,
+      deadline: BigNumberish,
+      v: BigNumberish,
+      r: BytesLike,
+      s: BytesLike
+    ],
     [void],
     "nonpayable"
   >;
@@ -443,7 +454,7 @@ export interface Bridge extends BaseContract {
   ): TypedContractMethod<
     [
       tokensOwner: AddressLike,
-      wrapperTokenAddress: AddressLike,
+      sourceTokenAddress: AddressLike,
       amount: BigNumberish,
       sourceTokenName: string,
       sourceTokenSymbol: string
@@ -485,7 +496,14 @@ export interface Bridge extends BaseContract {
   getFunction(
     nameOrSignature: "lock"
   ): TypedContractMethod<
-    [tokenAddress: AddressLike, amount: BigNumberish],
+    [
+      tokenAddress: AddressLike,
+      amount: BigNumberish,
+      deadline: BigNumberish,
+      v: BigNumberish,
+      r: BytesLike,
+      s: BytesLike
+    ],
     [void],
     "nonpayable"
   >;
@@ -566,11 +584,11 @@ export interface Bridge extends BaseContract {
     TokensToBeReleasedAddedEvent.OutputObject
   >;
   getEvent(
-    key: "WrappedTokenCreated"
+    key: "WrapperTokenCreated"
   ): TypedContractEvent<
-    WrappedTokenCreatedEvent.InputTuple,
-    WrappedTokenCreatedEvent.OutputTuple,
-    WrappedTokenCreatedEvent.OutputObject
+    WrapperTokenCreatedEvent.InputTuple,
+    WrapperTokenCreatedEvent.OutputTuple,
+    WrapperTokenCreatedEvent.OutputObject
   >;
 
   filters: {
@@ -640,7 +658,7 @@ export interface Bridge extends BaseContract {
       TokensToBeClaimedAddedEvent.OutputObject
     >;
 
-    "TokensToBeReleasedAdded(address,address,address,uint256,uint256)": TypedContractEvent<
+    "TokensToBeReleasedAdded(address,address,uint256,uint256)": TypedContractEvent<
       TokensToBeReleasedAddedEvent.InputTuple,
       TokensToBeReleasedAddedEvent.OutputTuple,
       TokensToBeReleasedAddedEvent.OutputObject
@@ -651,15 +669,15 @@ export interface Bridge extends BaseContract {
       TokensToBeReleasedAddedEvent.OutputObject
     >;
 
-    "WrappedTokenCreated(address,address)": TypedContractEvent<
-      WrappedTokenCreatedEvent.InputTuple,
-      WrappedTokenCreatedEvent.OutputTuple,
-      WrappedTokenCreatedEvent.OutputObject
+    "WrapperTokenCreated(address,address)": TypedContractEvent<
+      WrapperTokenCreatedEvent.InputTuple,
+      WrapperTokenCreatedEvent.OutputTuple,
+      WrapperTokenCreatedEvent.OutputObject
     >;
-    WrappedTokenCreated: TypedContractEvent<
-      WrappedTokenCreatedEvent.InputTuple,
-      WrappedTokenCreatedEvent.OutputTuple,
-      WrappedTokenCreatedEvent.OutputObject
+    WrapperTokenCreated: TypedContractEvent<
+      WrapperTokenCreatedEvent.InputTuple,
+      WrapperTokenCreatedEvent.OutputTuple,
+      WrapperTokenCreatedEvent.OutputObject
     >;
   };
 }

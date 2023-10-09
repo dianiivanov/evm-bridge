@@ -31,6 +31,10 @@ error InsufficientReleasableFunds(
  * @dev This bridge utilizes both base and wrapper tokens to manage cross-chain transfers.
  */
 contract Bridge is Ownable {
+    bytes32 private constant _CLAIM_TYPEHASH =
+        keccak256(
+            "Claim(address wrapperTokenAddress,uint256 amount,uint256 nonce,uint256 deadline)"
+        );
     event TokenLocked(
         address indexed amountOwner,
         address indexed lockedTokenAddress,

@@ -21,9 +21,9 @@ import type {
   TypedLogDescription,
   TypedListener,
   TypedContractMethod,
-} from "../common";
+} from "../../../../../common";
 
-export interface SourceTokenInterface extends Interface {
+export interface ERC20PermitInterface extends Interface {
   getFunction(
     nameOrSignature:
       | "DOMAIN_SEPARATOR"
@@ -34,7 +34,6 @@ export interface SourceTokenInterface extends Interface {
       | "decreaseAllowance"
       | "eip712Domain"
       | "increaseAllowance"
-      | "mint"
       | "name"
       | "nonces"
       | "permit"
@@ -75,10 +74,6 @@ export interface SourceTokenInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "increaseAllowance",
-    values: [AddressLike, BigNumberish]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "mint",
     values: [AddressLike, BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "name", values?: undefined): string;
@@ -129,7 +124,6 @@ export interface SourceTokenInterface extends Interface {
     functionFragment: "increaseAllowance",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "mint", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "name", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "nonces", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "permit", data: BytesLike): Result;
@@ -191,11 +185,11 @@ export namespace TransferEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export interface SourceToken extends BaseContract {
-  connect(runner?: ContractRunner | null): SourceToken;
+export interface ERC20Permit extends BaseContract {
+  connect(runner?: ContractRunner | null): ERC20Permit;
   waitForDeployment(): Promise<this>;
 
-  interface: SourceTokenInterface;
+  interface: ERC20PermitInterface;
 
   queryFilter<TCEvent extends TypedContractEvent>(
     event: TCEvent,
@@ -277,12 +271,6 @@ export interface SourceToken extends BaseContract {
   increaseAllowance: TypedContractMethod<
     [spender: AddressLike, addedValue: BigNumberish],
     [boolean],
-    "nonpayable"
-  >;
-
-  mint: TypedContractMethod<
-    [account: AddressLike, amount: BigNumberish],
-    [void],
     "nonpayable"
   >;
 
@@ -376,13 +364,6 @@ export interface SourceToken extends BaseContract {
   ): TypedContractMethod<
     [spender: AddressLike, addedValue: BigNumberish],
     [boolean],
-    "nonpayable"
-  >;
-  getFunction(
-    nameOrSignature: "mint"
-  ): TypedContractMethod<
-    [account: AddressLike, amount: BigNumberish],
-    [void],
     "nonpayable"
   >;
   getFunction(

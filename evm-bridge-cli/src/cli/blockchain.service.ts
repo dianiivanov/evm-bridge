@@ -1,10 +1,9 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InterfaceAbi, ethers, Wallet } from 'ethers';
-// import { keccak256, defaultAbiCoder, toUtf8Bytes, solidityPack } from 'ethers-utils';
-import { TypedDataDomain } from 'ethers'
+import { SignPermitDetails, signPermit } from './sign.utils';
 
-import { Bridge__factory, ERC20__factory, SourceToken__factory } from '../typechain-types';
+import { Bridge__factory, ERC20__factory, SourceToken__factory, ERC20Permit__factory } from '../typechain-types';
 import BigNumber from 'bignumber.js';
 
 @Injectable()
@@ -53,10 +52,10 @@ export class BlockchainService implements OnModuleInit {
   public getAndConnectBridgeContract(blockchainName: string, privateKey: string) {
     const provider = this.blockchains[blockchainName].provider;
     const pk: string = privateKey || this.configService.get('PRIVATE_KEY');
+    console.log("pk: " + pk);
     const wallet = new ethers.Wallet(pk, provider);
     return {
       bridgeContract: this.blockchains[blockchainName].bridgeContract.connect(wallet),
-      // walletAddress: wallet.address,
       wallet
     }
   }
@@ -75,72 +74,21 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
-  private async approve(blockchainName: string, tokenAddress: string, approvedAddress: string, amount: string, privateKey: string) {
-    const { tokenContract, } = this.getAndConnectTokenContract(blockchainName, tokenAddress, privateKey, SourceToken__factory.abi);
-    const approveTx = await tokenContract.approve(approvedAddress, amount);
-    await approveTx.wait();
-  }
-
   public async lock(blockchainName: string, tokenAddress: string, amount: string, privateKey: string) {
     const { bridgeContract, wallet } = this.getAndConnectBridgeContract(blockchainName, privateKey);
     const { tokenContract, tokenName, tokenSymbol } = await this.getTokenNameAndSymbol(blockchainName, tokenAddress, privateKey);
-
-    const nonce = await tokenContract.nonces(wallet.address);
-    const deadline = + new Date() + 60 * 60;
-    const eip712Domain = [
-      { name: 'name', type: 'string' },
-      { name: 'version', type: 'string' },
-      { name: 'verifyingContract', type: 'address' }
-    ];
-    const domain: TypedDataDomain = {
-      name: tokenName,
-      version: '1',
-      verifyingContract: tokenAddress
-    };
-
-    const permit = [
-      { name: 'owner', type: 'address' },
-      { name: 'spender', type: 'address' },
-      { name: 'value', type: 'uint256' },
-      { name: 'nonce', type: 'uint256' },
-      { name: 'deadline', type: 'uint256' }
-    ];
-
-    const message = {
-      owner: wallet.address, // Wallet Address
-      spender: bridgeContract.address, // **This is the address of the spender whe want to give permit to.**
-      value: amount,
-      nonce: nonce.toHexString(),
-      deadline
-    };
-
-    const data = JSON.stringify({
-      types: {
-        eip712Domain,
-        permit
-      },
-      domain,
-      primaryType: 'Permit',
-      message
-    });
-
-
-    const signatureLike = await wallet.signTypedData(domain, { permit }, message);
-
-    const splitSig = ethers.Signature.from(signatureLike);
-
-    const preparedSignature = {
-      deadline,
-      v: splitSig.v,
-      r: splitSig.r,
-      s: splitSig.s
-    };
-    //._signTypedData(domain, { Permit }, message);
-
-
+    const signPermitDetails: SignPermitDetails = {
+      tokenContract,
+      tokenName,
+      tokenSymbol,
+      tokenAddress,
+      bridgeAddress: this.getBridgeAddress(blockchainName),
+      amount
+    }
+    const signature = await signPermit(wallet, signPermitDetails);
 
     console.log(`Locking ${amount}${tokenSymbol} to ${blockchainName}'s bridge...`);
-    const transaction = await bridgeContract.lock(tokenAddress, amount, preparedSignature);
+    const transaction = await bridgeContract.lock(tokenAddress, amount, signature.deadline, signature.v, signature.r, signature.s);
     await transaction.wait();
     console.log(`Successfully locked ${amount}${tokenSymbol} to the ${blockchainName}'s bridge!`);
   }
@@ -276,7 +224,7 @@ export class BlockchainService implements OnModuleInit {
   }
 
   public async getTokenNameAndSymbol(blockchainName: string, tokenAddress: string, privateKey: string) {
-    const { tokenContract, } = this.getAndConnectTokenContract(blockchainName, tokenAddress, privateKey, ERC20__factory.abi);
+    const { tokenContract, } = this.getAndConnectTokenContract(blockchainName, tokenAddress, privateKey, ERC20Permit__factory.abi);
     const tokenName = await tokenContract.name();
     const tokenSymbol = await tokenContract.symbol();
     return { tokenContract, tokenName, tokenSymbol };
