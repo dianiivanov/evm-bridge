@@ -1,7 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 export abstract class AbstractEventEntity {
-    constructor(amountOwner: string, amount: number, blockchainName: string) {
+    constructor(amountOwner: string, amount: bigint, blockchainName: string) {
         this.amountOwner = amountOwner;
         this.amount = amount;
         this.blockchainName = blockchainName;
@@ -12,8 +12,8 @@ export abstract class AbstractEventEntity {
     @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
     createdAt: Date;
 
-    @Column()
-    amount: number;
+    @Column({ type: 'bigint' })
+    amount: bigint;
 
     @Column()
     amountOwner: string;

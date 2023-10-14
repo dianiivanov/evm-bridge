@@ -175,14 +175,15 @@ export class BlockchainService implements OnModuleInit {
     const oppositeBridgeContract = this.blockchains[oppositeBlockchainName].bridgeContract.connect(this.blockchains[oppositeBlockchainName].defaultWallet);
     console.log(`Adding tokens to be claimed in ${oppositeBlockchainName}'s bridge for user with address: ${amountOwner}...`);
     const tx = await oppositeBridgeContract.addClaim(amountOwner, lockedTokenAddress, amount, tokenName, tokenSymbol);
-    await tx;
+    await tx.wait(5);
     console.log(`Successfully added amount to be claimed for wrapper of ${tokenName}: ${amount}${tokenSymbol}`);
 
     console.log(`Obtaining ${tokenName}'s wrapper token...`)
     const wrapperTokenAddress = await oppositeBridgeContract.baseToWrapperToken(lockedTokenAddress);
+    console.log(`Wrapper token address: ${wrapperTokenAddress}`);
+
     const { tokenName: wrapperTokenName, tokenSymbol: wrapperTokenSymbol } = await this.getTokenNameAndSymbol(oppositeBlockchainName, wrapperTokenAddress, null);
 
-    console.log(`Wrapper token address: ${wrapperTokenAddress}`);
     console.log(`Wrapper token name: ${wrapperTokenName}`);
     console.log(`Wrapper token amount added: ${amount}${wrapperTokenSymbol}`);
     console.log(`All wrapper token amount to be claimed: ${await oppositeBridgeContract.claimableFor(amountOwner, wrapperTokenAddress)}${wrapperTokenSymbol}`);
@@ -208,7 +209,7 @@ export class BlockchainService implements OnModuleInit {
     const oppositeBridgeContract = this.blockchains[oppositeBlockchainName].bridgeContract.connect(this.blockchains[oppositeBlockchainName].defaultWallet);
     console.log(`Adding tokens to be released in ${oppositeBlockchainName}'s bridge for user with address: ${amountOwner}...`);
     const tx = await oppositeBridgeContract.addRelease(amountOwner, sourceTokenAddress, amount);
-    await tx;
+    await tx.wait(5);
     console.log(`Successfully added amount to be released for ${tokenName}: ${amount}${tokenSymbol}`);
     console.log(`All token amount to be released for user ${amountOwner}: ${await oppositeBridgeContract.releasableFor(amountOwner, sourceTokenAddress)}${tokenSymbol}`);
   }
