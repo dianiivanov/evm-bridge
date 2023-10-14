@@ -18,6 +18,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Ownable__factory>;
     getContractFactory(
+      name: "IERC5267",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.IERC5267__factory>;
+    getContractFactory(
       name: "ERC20",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.ERC20__factory>;
@@ -26,13 +30,29 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.ERC20Burnable__factory>;
     getContractFactory(
+      name: "ERC20Permit",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.ERC20Permit__factory>;
+    getContractFactory(
       name: "IERC20Metadata",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IERC20Metadata__factory>;
     getContractFactory(
+      name: "IERC20Permit",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.IERC20Permit__factory>;
+    getContractFactory(
       name: "IERC20",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IERC20__factory>;
+    getContractFactory(
+      name: "EIP712",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.EIP712__factory>;
+    getContractFactory(
+      name: "ShortStrings",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.ShortStrings__factory>;
     getContractFactory(
       name: "Bridge",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -52,6 +72,11 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.Ownable>;
     getContractAt(
+      name: "IERC5267",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.IERC5267>;
+    getContractAt(
       name: "ERC20",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -62,15 +87,35 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.ERC20Burnable>;
     getContractAt(
+      name: "ERC20Permit",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.ERC20Permit>;
+    getContractAt(
       name: "IERC20Metadata",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.IERC20Metadata>;
     getContractAt(
+      name: "IERC20Permit",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.IERC20Permit>;
+    getContractAt(
       name: "IERC20",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.IERC20>;
+    getContractAt(
+      name: "EIP712",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.EIP712>;
+    getContractAt(
+      name: "ShortStrings",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.ShortStrings>;
     getContractAt(
       name: "Bridge",
       address: string | ethers.Addressable,
@@ -92,6 +137,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.Ownable>;
     deployContract(
+      name: "IERC5267",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IERC5267>;
+    deployContract(
       name: "ERC20",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.ERC20>;
@@ -100,13 +149,29 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.ERC20Burnable>;
     deployContract(
+      name: "ERC20Permit",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ERC20Permit>;
+    deployContract(
       name: "IERC20Metadata",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC20Metadata>;
     deployContract(
+      name: "IERC20Permit",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IERC20Permit>;
+    deployContract(
       name: "IERC20",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC20>;
+    deployContract(
+      name: "EIP712",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.EIP712>;
+    deployContract(
+      name: "ShortStrings",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ShortStrings>;
     deployContract(
       name: "Bridge",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -126,6 +191,11 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.Ownable>;
     deployContract(
+      name: "IERC5267",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IERC5267>;
+    deployContract(
       name: "ERC20",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -136,15 +206,35 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.ERC20Burnable>;
     deployContract(
+      name: "ERC20Permit",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ERC20Permit>;
+    deployContract(
       name: "IERC20Metadata",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC20Metadata>;
     deployContract(
+      name: "IERC20Permit",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.IERC20Permit>;
+    deployContract(
       name: "IERC20",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC20>;
+    deployContract(
+      name: "EIP712",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.EIP712>;
+    deployContract(
+      name: "ShortStrings",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.ShortStrings>;
     deployContract(
       name: "Bridge",
       args: any[],

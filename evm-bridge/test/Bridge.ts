@@ -1,9 +1,10 @@
 import { ethers } from "hardhat"
-import { Contract, Signer } from "ethers";
+import { Contract, Signer, Wallet } from "ethers";
 import { ERC20, WrapperToken__factory, contracts } from "../typechain-types";
 import { expect } from "chai";
 import BigNumber from 'bignumber.js';
 import { anyValue } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
+import { SignPermitDetails, signPermit } from '../../evm-bridge-cli/src/cli/sign.utils';
 
 describe("Bridge", function () {
     let bridgeOwnerUser: Signer;
@@ -53,14 +54,18 @@ describe("Bridge", function () {
 
     describe("Lock", async function () {
         it("Lock should be reverted due to not enough allowance", async function () {
-            await expect(bridgeContract.connect(user).lock(sourceTokenAddress, startingAmount.plus(amount).toString()))
-                .to.be.revertedWith('ERC20: insufficient allowance');
-        });
+            const signPermitDetails: SignPermitDetails = {
+                tokenContract: sourceTokenContract,
+                tokenName: name,
+                tokenSymbol: symbol,
+                tokenAddress: sourceTokenAddress,
+                bridgeAddress,
+                amount: startingAmount.plus(amount).toString()
+            }
 
-        it("Lock should be reverted due to not enough allowance", async function () {
-            await sourceTokenContract.connect(user).increaseAllowance(bridgeAddress, amount.toString());
+            const signature = await signPermit(user as Wallet, signPermitDetails);
 
-            await expect(bridgeContract.connect(user).lock(sourceTokenAddress, startingAmount.plus(amount).toString()))
+            await expect(bridgeContract.connect(user).lock(sourceTokenAddress, startingAmount.plus(amount).toString(), signature.deadline, signature.v, signature.r, signature.s))
                 .to.be.revertedWith('ERC20: transfer amount exceeds balance');
         });
 
@@ -68,7 +73,18 @@ describe("Bridge", function () {
             const userBalanceBeforeLock: BigNumber = await getBalanceOf(sourceTokenContract, userAddress);
             const bridgeBalanceBeforeLock: BigNumber = await getBalanceOf(sourceTokenContract, bridgeAddress);
 
-            await expect(bridgeContract.connect(user).lock(sourceTokenAddress, amount.toString()))
+            const signPermitDetails: SignPermitDetails = {
+                tokenContract: sourceTokenContract,
+                tokenName: name,
+                tokenSymbol: symbol,
+                tokenAddress: sourceTokenAddress,
+                bridgeAddress,
+                amount: amount.toString()
+            }
+
+            const signature = await signPermit(user as Wallet, signPermitDetails);
+
+            await expect(bridgeContract.connect(user).lock(sourceTokenAddress, amount.toString(), signature.deadline, signature.v, signature.r, signature.s))
                 .to.emit(bridgeContract, "TokenLocked")
                 .withArgs(userAddress, sourceTokenAddress, amount)
                 .to.emit(sourceTokenContract, "Transfer")
