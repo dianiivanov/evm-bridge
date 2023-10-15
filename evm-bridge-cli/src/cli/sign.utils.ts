@@ -50,3 +50,16 @@ export async function signPermit(wallet: ethers.Wallet, signPermitDetails: SignP
         s: splitSig.s
     };
 }
+
+export async function signAndLogMessageSignature(wallet: ethers.Wallet, types: ReadonlyArray<string>, values: ReadonlyArray<any>) {
+    // Data to sign
+    const message = ethers.solidityPackedKeccak256(
+        types,
+        values
+    );
+
+    // Sign the message
+    const signature = await wallet.signMessage(ethers.toBeArray(message));
+    console.log('Signature:', signature);
+    return signature;
+}

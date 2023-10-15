@@ -26,18 +26,15 @@ import type {
 export interface BridgeInterface extends Interface {
   getFunction(
     nameOrSignature:
-      | "addClaim"
-      | "addRelease"
       | "baseToWrapperToken"
       | "burn"
       | "claim"
-      | "claimableFor"
       | "lock"
       | "owner"
-      | "releasableFor"
       | "release"
       | "renounceOwnership"
       | "transferOwnership"
+      | "usedNonces"
       | "wrapperToBaseToken"
   ): FunctionFragment;
 
@@ -54,14 +51,6 @@ export interface BridgeInterface extends Interface {
   ): EventFragment;
 
   encodeFunctionData(
-    functionFragment: "addClaim",
-    values: [AddressLike, AddressLike, BigNumberish, string, string]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "addRelease",
-    values: [AddressLike, AddressLike, BigNumberish]
-  ): string;
-  encodeFunctionData(
     functionFragment: "baseToWrapperToken",
     values: [AddressLike]
   ): string;
@@ -71,11 +60,7 @@ export interface BridgeInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "claim",
-    values: [AddressLike, BigNumberish]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "claimableFor",
-    values: [AddressLike, AddressLike]
+    values: [AddressLike, BigNumberish, BigNumberish, string, string, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "lock",
@@ -90,12 +75,8 @@ export interface BridgeInterface extends Interface {
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "releasableFor",
-    values: [AddressLike, AddressLike]
-  ): string;
-  encodeFunctionData(
     functionFragment: "release",
-    values: [AddressLike, BigNumberish]
+    values: [AddressLike, BigNumberish, BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "renounceOwnership",
@@ -106,28 +87,22 @@ export interface BridgeInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "usedNonces",
+    values: [AddressLike, BigNumberish]
+  ): string;
+  encodeFunctionData(
     functionFragment: "wrapperToBaseToken",
     values: [AddressLike]
   ): string;
 
-  decodeFunctionResult(functionFragment: "addClaim", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "addRelease", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "baseToWrapperToken",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "burn", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "claim", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "claimableFor",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "lock", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "releasableFor",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "release", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
@@ -137,6 +112,7 @@ export interface BridgeInterface extends Interface {
     functionFragment: "transferOwnership",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "usedNonces", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "wrapperToBaseToken",
     data: BytesLike
@@ -362,24 +338,6 @@ export interface Bridge extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
-  addClaim: TypedContractMethod<
-    [
-      tokensOwner: AddressLike,
-      sourceTokenAddress: AddressLike,
-      amount: BigNumberish,
-      sourceTokenName: string,
-      sourceTokenSymbol: string
-    ],
-    [void],
-    "nonpayable"
-  >;
-
-  addRelease: TypedContractMethod<
-    [tokensOwner: AddressLike, tokenAddress: AddressLike, amount: BigNumberish],
-    [void],
-    "nonpayable"
-  >;
-
   baseToWrapperToken: TypedContractMethod<
     [arg0: AddressLike],
     [string],
@@ -393,15 +351,16 @@ export interface Bridge extends BaseContract {
   >;
 
   claim: TypedContractMethod<
-    [wrapperTokenAddress: AddressLike, amount: BigNumberish],
+    [
+      sourceTokenAddress: AddressLike,
+      amount: BigNumberish,
+      nonce: BigNumberish,
+      sourceTokenName: string,
+      sourceTokenSymbol: string,
+      signature: BytesLike
+    ],
     [void],
     "nonpayable"
-  >;
-
-  claimableFor: TypedContractMethod<
-    [arg0: AddressLike, arg1: AddressLike],
-    [bigint],
-    "view"
   >;
 
   lock: TypedContractMethod<
@@ -419,14 +378,13 @@ export interface Bridge extends BaseContract {
 
   owner: TypedContractMethod<[], [string], "view">;
 
-  releasableFor: TypedContractMethod<
-    [arg0: AddressLike, arg1: AddressLike],
-    [bigint],
-    "view"
-  >;
-
   release: TypedContractMethod<
-    [tokenAddress: AddressLike, amount: BigNumberish],
+    [
+      tokenAddress: AddressLike,
+      amount: BigNumberish,
+      nonce: BigNumberish,
+      signature: BytesLike
+    ],
     [void],
     "nonpayable"
   >;
@@ -437,6 +395,12 @@ export interface Bridge extends BaseContract {
     [newOwner: AddressLike],
     [void],
     "nonpayable"
+  >;
+
+  usedNonces: TypedContractMethod<
+    [arg0: AddressLike, arg1: BigNumberish],
+    [boolean],
+    "view"
   >;
 
   wrapperToBaseToken: TypedContractMethod<
@@ -450,26 +414,6 @@ export interface Bridge extends BaseContract {
   ): T;
 
   getFunction(
-    nameOrSignature: "addClaim"
-  ): TypedContractMethod<
-    [
-      tokensOwner: AddressLike,
-      sourceTokenAddress: AddressLike,
-      amount: BigNumberish,
-      sourceTokenName: string,
-      sourceTokenSymbol: string
-    ],
-    [void],
-    "nonpayable"
-  >;
-  getFunction(
-    nameOrSignature: "addRelease"
-  ): TypedContractMethod<
-    [tokensOwner: AddressLike, tokenAddress: AddressLike, amount: BigNumberish],
-    [void],
-    "nonpayable"
-  >;
-  getFunction(
     nameOrSignature: "baseToWrapperToken"
   ): TypedContractMethod<[arg0: AddressLike], [string], "view">;
   getFunction(
@@ -482,16 +426,16 @@ export interface Bridge extends BaseContract {
   getFunction(
     nameOrSignature: "claim"
   ): TypedContractMethod<
-    [wrapperTokenAddress: AddressLike, amount: BigNumberish],
+    [
+      sourceTokenAddress: AddressLike,
+      amount: BigNumberish,
+      nonce: BigNumberish,
+      sourceTokenName: string,
+      sourceTokenSymbol: string,
+      signature: BytesLike
+    ],
     [void],
     "nonpayable"
-  >;
-  getFunction(
-    nameOrSignature: "claimableFor"
-  ): TypedContractMethod<
-    [arg0: AddressLike, arg1: AddressLike],
-    [bigint],
-    "view"
   >;
   getFunction(
     nameOrSignature: "lock"
@@ -511,16 +455,14 @@ export interface Bridge extends BaseContract {
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
-    nameOrSignature: "releasableFor"
-  ): TypedContractMethod<
-    [arg0: AddressLike, arg1: AddressLike],
-    [bigint],
-    "view"
-  >;
-  getFunction(
     nameOrSignature: "release"
   ): TypedContractMethod<
-    [tokenAddress: AddressLike, amount: BigNumberish],
+    [
+      tokenAddress: AddressLike,
+      amount: BigNumberish,
+      nonce: BigNumberish,
+      signature: BytesLike
+    ],
     [void],
     "nonpayable"
   >;
@@ -530,6 +472,13 @@ export interface Bridge extends BaseContract {
   getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "usedNonces"
+  ): TypedContractMethod<
+    [arg0: AddressLike, arg1: BigNumberish],
+    [boolean],
+    "view"
+  >;
   getFunction(
     nameOrSignature: "wrapperToBaseToken"
   ): TypedContractMethod<[arg0: AddressLike], [string], "view">;

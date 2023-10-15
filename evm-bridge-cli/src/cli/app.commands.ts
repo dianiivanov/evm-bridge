@@ -43,19 +43,20 @@ export abstract class AbstractCommand extends CommandRunner {
   }
 }
 
+
 @Injectable()
 @Command({ name: 'lock', description: 'Locks a given amount of tokens to the given blockchain' })
 export class LockCommand extends AbstractCommand {
   constructor(blockchainService: BlockchainService) {
     super(blockchainService);
   }
-
+  //It's better to make the nonce auto-increment, or keep it on-chain where it is incremented and sent trough the Events
   async run(
-    [blockchainName, tokenAddress, amountToLock]: string[],
+    [blockchainName, tokenAddress, amountToLock, nonce]: string[],
     options?: BasicCommandOptions,
   ) {
     validateUintForSolidity(amountToLock);
-    await this.blockchainService.lock(blockchainName, tokenAddress, amountToLock, options.privatekey);
+    await this.blockchainService.lock(blockchainName, tokenAddress, amountToLock, options.privatekey, nonce); // would be nice to impl auto incrmeneting logic for nonce
   }
 }
 
@@ -68,11 +69,11 @@ export class ClaimCommand extends AbstractCommand {
   }
 
   async run(
-    [blockchainName, tokenAddress, amountToClaim]: string[],
+    [blockchainName, tokenAddress, amountToClaim, nonce, signature]: string[],
     options?: BasicCommandOptions,
   ) {
     validateUintForSolidity(amountToClaim);
-    await this.blockchainService.claim(blockchainName, tokenAddress, amountToClaim, options.privatekey);
+    await this.blockchainService.claim(blockchainName, tokenAddress, amountToClaim, options.privatekey, nonce, signature);
   }
 }
 
@@ -84,11 +85,11 @@ export class BurnCommand extends AbstractCommand {
   }
 
   async run(
-    [blockchainName, tokenAddress, amountToBurn]: string[],
+    [blockchainName, tokenAddress, amountToBurn, nonce]: string[],
     options?: BasicCommandOptions,
   ) {
     validateUintForSolidity(amountToBurn);
-    this.blockchainService.burn(blockchainName, tokenAddress, amountToBurn, options.privatekey);
+    this.blockchainService.burn(blockchainName, tokenAddress, amountToBurn, options.privatekey, nonce);
   }
 }
 
@@ -101,11 +102,11 @@ export class ReleaseCommand extends AbstractCommand {
   }
 
   async run(
-    [blockchainName, tokenAddress, amountToRelease]: string[],
+    [blockchainName, tokenAddress, amountToRelease, nonce, signature]: string[],
     options?: BasicCommandOptions,
   ) {
     validateUintForSolidity(amountToRelease);
-    this.blockchainService.release(blockchainName, tokenAddress, amountToRelease, options.privatekey);
+    this.blockchainService.release(blockchainName, tokenAddress, amountToRelease, options.privatekey, nonce, signature);
   }
 }
 
