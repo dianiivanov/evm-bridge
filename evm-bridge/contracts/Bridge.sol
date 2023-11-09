@@ -25,6 +25,21 @@ error InsufficientReleasableFunds(
     uint256 available
 );
 
+error InvalidNonce(
+    address account,
+    address tokenAddress,
+    uint256 requested,
+    uint256 available
+);
+
+error InvalidSignature(
+    address account,
+    address sourceTokenAddress,
+    uint256 amount,
+    uint256 nonce,
+    bytes signature
+);
+
 /*
  * @title Bridge - Decentralized Token Bridge Contract
  * @notice The Bridge contract provides functions for locking, claiming, burning, and releasing tokens.
@@ -81,11 +96,8 @@ contract Bridge is Ownable {
     mapping(address => address) public baseToWrapperToken;
     mapping(address => address) public wrapperToBaseToken;
 
-    //owner to target token to amount to be claimed
-    mapping(address => mapping(address => uint256)) public claimableFor;
-
     //owner to target token to amount to be released
-    mapping(address => mapping(address => uint256)) public releasableFor;
+    mapping(address => mapping(uint256 => bool)) public usedNonces;
 
     /*
      * @notice Locks tokens in the bridge.
@@ -120,22 +132,35 @@ contract Bridge is Ownable {
      * @param amount Amount of tokens to claim.
      */
     function claim(
-        address wrapperTokenAddress,
-        uint256 amount
-    ) external onlyForMappedWrapperTopken(wrapperTokenAddress) {
-        uint256 availableToClaim = claimableFor[msg.sender][
-            wrapperTokenAddress
-        ];
-        if (amount > availableToClaim) {
-            revert InsufficientClaimableFunds(
-                msg.sender,
-                wrapperTokenAddress,
-                amount,
-                availableToClaim
+        address sourceTokenAddress,
+        uint256 amount,
+        uint256 nonce,
+        string memory sourceTokenName,
+        string memory sourceTokenSymbol,
+        bytes memory signature
+    )
+        external
+        _onlyForValidSignature(
+            msg.sender,
+            sourceTokenAddress,
+            amount,
+            nonce,
+            signature
+        )
+    {
+        address wrapperTokenAddress = baseToWrapperToken[sourceTokenAddress];
+        if (wrapperTokenAddress == address(0)) {
+            wrapperTokenAddress = address(
+                new WrapperToken(
+                    string.concat("Wrapper_", sourceTokenName),
+                    string.concat("WRP_", sourceTokenSymbol)
+                )
             );
+            _addTokensMapping(sourceTokenAddress, wrapperTokenAddress);
+
+            emit WrapperTokenCreated(sourceTokenAddress, wrapperTokenAddress);
         }
 
-        claimableFor[msg.sender][wrapperTokenAddress] -= amount;
         WrapperToken(wrapperTokenAddress).mint(msg.sender, amount);
         emit TokenClaimed(
             msg.sender,
@@ -143,6 +168,47 @@ contract Bridge is Ownable {
             wrapperTokenAddress,
             amount
         );
+    }
+
+    function prefixed(bytes32 hash) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked("\x19Ethereum Signed Message:\n32", hash)
+            );
+    }
+
+    function recoverSigner(
+        bytes32 message,
+        bytes memory sig
+    ) internal pure returns (address) {
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+
+        (v, r, s) = splitSignature(sig);
+
+        return ecrecover(message, v, r, s);
+    }
+
+    function splitSignature(
+        bytes memory sig
+    ) internal pure returns (uint8, bytes32, bytes32) {
+        require(sig.length == 65);
+
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+
+        assembly {
+            // first 32 bytes, after the length prefix
+            r := mload(add(sig, 32))
+            // second 32 bytes
+            s := mload(add(sig, 64))
+            // final byte (first byte of the next 32 bytes)
+            v := byte(0, mload(add(sig, 96)))
+        }
+
+        return (v, r, s);
     }
 
     /*
@@ -178,75 +244,23 @@ contract Bridge is Ownable {
      * @param tokenAddress Address of the source token.
      * @param amount Amount of source tokens to release.
      */
-    function release(address tokenAddress, uint256 amount) external {
-        if (amount > releasableFor[msg.sender][tokenAddress]) {
-            revert InsufficientReleasableFunds(
-                msg.sender,
-                tokenAddress,
-                amount,
-                releasableFor[msg.sender][tokenAddress]
-            );
-        }
-        releasableFor[msg.sender][tokenAddress] -= amount;
-        IERC20(tokenAddress).transfer(msg.sender, amount);
-        emit TokenReleased(msg.sender, tokenAddress, amount);
-    }
-
-    /*
-     * @dev Must be executed on the target chain after tokens were locked with a specific amount on the source chain
-     * @notice Adds an amount to the claimable balance of a specific user.
-     * @param tokensOwner Address of the user.
-     * @param wrapperTokenAddress Address of the wrapper token.
-     * @param amount Amount of tokens to add that can be claimed from the target bridge.
-     */
-    function addClaim(
-        address tokensOwner,
-        address sourceTokenAddress,
-        uint256 amount,
-        string memory sourceTokenName,
-        string memory sourceTokenSymbol
-    ) external onlyOwner {
-        address wrappedTokenAddress = baseToWrapperToken[sourceTokenAddress];
-        if (wrappedTokenAddress == address(0)) {
-            wrappedTokenAddress = address(
-                new WrapperToken(
-                    string.concat("Wrapper_", sourceTokenName),
-                    string.concat("WRP_", sourceTokenSymbol)
-                )
-            );
-            _addTokensMapping(sourceTokenAddress, wrappedTokenAddress);
-
-            emit WrapperTokenCreated(sourceTokenAddress, wrappedTokenAddress);
-        }
-
-        claimableFor[tokensOwner][wrappedTokenAddress] += amount;
-        emit TokensToBeClaimedAdded(
-            tokensOwner,
-            wrappedTokenAddress,
-            amount,
-            claimableFor[tokensOwner][wrappedTokenAddress]
-        );
-    }
-
-    /*
-     * @dev Must be executed on the source chain after tokens were burnt with a specific amount on the target chain
-     * @notice Adds an amount to the releasable balance of a specific user.
-     * @param tokensOwner Address of the user.
-     * @param tokenAddress Address of the source token.
-     * @param amount Amount of tokens to add.
-     */
-    function addRelease(
-        address tokensOwner,
+    function release(
         address tokenAddress,
-        uint256 amount
-    ) external onlyOwner {
-        releasableFor[tokensOwner][tokenAddress] += amount;
-        emit TokensToBeReleasedAdded(
-            tokensOwner,
+        uint256 amount,
+        uint256 nonce,
+        bytes memory signature
+    )
+        external
+        _onlyForValidSignature(
+            msg.sender,
             tokenAddress,
             amount,
-            releasableFor[tokensOwner][tokenAddress]
-        );
+            nonce,
+            signature
+        )
+    {
+        IERC20(tokenAddress).transfer(msg.sender, amount);
+        emit TokenReleased(msg.sender, tokenAddress, amount);
     }
 
     /*
@@ -266,6 +280,34 @@ contract Bridge is Ownable {
         address baseToken = wrapperToBaseToken[wrapperTokenAddress];
         if (baseToken == address(0)) {
             revert TokenNotMapped(wrapperTokenAddress);
+        }
+        _;
+    }
+
+    modifier _onlyForValidSignature(
+        address sender,
+        address tokenAddress,
+        uint256 amount,
+        uint256 nonce,
+        bytes memory signature
+    ) {
+        if (usedNonces[msg.sender][nonce]) {
+            revert InvalidNonce(msg.sender, tokenAddress, amount, nonce);
+        }
+        usedNonces[msg.sender][nonce] = true;
+        //signature check
+        bytes32 message = prefixed(
+            keccak256(abi.encodePacked(msg.sender, tokenAddress, amount, nonce))
+        );
+
+        if (recoverSigner(message, signature) != this.owner()) {
+            revert InvalidSignature(
+                msg.sender,
+                tokenAddress,
+                amount,
+                nonce,
+                signature
+            );
         }
         _;
     }

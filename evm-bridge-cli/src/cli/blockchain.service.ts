@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InterfaceAbi, ethers, Wallet } from 'ethers';
-import { SignPermitDetails, signPermit } from './sign.utils';
+import { SignPermitDetails, signAndLogMessageSignature, signPermit } from './sign.utils';
 
 import { Bridge__factory, ERC20__factory, SourceToken__factory, ERC20Permit__factory } from '../typechain-types';
 import BigNumber from 'bignumber.js';
@@ -52,7 +52,6 @@ export class BlockchainService implements OnModuleInit {
   public getAndConnectBridgeContract(blockchainName: string, privateKey: string) {
     const provider = this.blockchains[blockchainName].provider;
     const pk: string = privateKey || this.configService.get('PRIVATE_KEY');
-    console.log("pk: " + pk);
     const wallet = new ethers.Wallet(pk, provider);
     return {
       bridgeContract: this.blockchains[blockchainName].bridgeContract.connect(wallet),
@@ -74,7 +73,7 @@ export class BlockchainService implements OnModuleInit {
     }
   }
 
-  public async lock(blockchainName: string, tokenAddress: string, amount: string, privateKey: string) {
+  public async lock(blockchainName: string, tokenAddress: string, amount: string, privateKey: string, nonce: string) {
     const { bridgeContract, wallet } = this.getAndConnectBridgeContract(blockchainName, privateKey);
     const { tokenContract, tokenName, tokenSymbol } = await this.getTokenNameAndSymbol(blockchainName, tokenAddress, privateKey);
     const signPermitDetails: SignPermitDetails = {
@@ -91,31 +90,36 @@ export class BlockchainService implements OnModuleInit {
     const transaction = await bridgeContract.lock(tokenAddress, amount, signature.deadline, signature.v, signature.r, signature.s);
     await transaction.wait();
     console.log(`Successfully locked ${amount}${tokenSymbol} to the ${blockchainName}'s bridge!`);
+    console.log('Nonce:', nonce);
+    signAndLogMessageSignature(this.blockchains[blockchainName].defaultWallet, ['address', 'address', 'uint256', 'uint256'], [wallet.address, tokenAddress, amount, nonce]);
   }
 
-  public async claim(blockchainName: string, tokenAddress: string, amount: string, privateKey: string) {
+  public async claim(blockchainName: string, tokenAddress: string, amount: string, privateKey: string, nonce: string, signature: any) {
     const { bridgeContract, } = this.getAndConnectBridgeContract(blockchainName, privateKey);
-    const { tokenSymbol } = await this.getTokenNameAndSymbol(blockchainName, tokenAddress, privateKey);
+    const { tokenName, tokenSymbol } = await this.getTokenNameAndSymbol(this.getOppositeBlockchain(blockchainName), tokenAddress, privateKey);
     console.log(`Claiming ${amount}${tokenSymbol} from ${blockchainName}'s bridge, bridge's address = ${this.getBridgeAddress(blockchainName)}...`);
-    const transaction = await bridgeContract.claim(tokenAddress, amount);
+    const transaction = await bridgeContract.claim(tokenAddress, amount, nonce, tokenName, tokenSymbol, signature);
     await transaction.wait();
     console.log(`Successfully claimed ${amount}${tokenSymbol} tokens from the ${blockchainName}'s bridge!`);
   }
 
-  public async burn(blockchainName: string, tokenAddress: string, amount: string, privateKey: string) {
-    const { bridgeContract, } = this.getAndConnectBridgeContract(blockchainName, privateKey);
+  public async burn(blockchainName: string, tokenAddress: string, amount: string, privateKey: string, nonce: string) {
+    const { bridgeContract, wallet } = this.getAndConnectBridgeContract(blockchainName, privateKey);
     const { tokenSymbol } = await this.getTokenNameAndSymbol(blockchainName, tokenAddress, privateKey);
     console.log(`Burning ${amount}${tokenSymbol} from ${blockchainName}'s bridge, bridge's address: ${this.getBridgeAddress(blockchainName)}...`);
     const transaction = await bridgeContract.burn(tokenAddress, amount);
     await transaction.wait();
+    const sourceTokenAddress = await bridgeContract.wrapperToBaseToken(tokenAddress);
     console.log(`Successfully burned ${amount}${tokenSymbol} from the ${blockchainName}'s bridge!`);
+    console.log('Nonce:', nonce);
+    signAndLogMessageSignature(this.blockchains[blockchainName].defaultWallet, ['address', 'address', 'uint256', 'uint256'], [wallet.address, sourceTokenAddress, amount, nonce]);
   }
 
-  public async release(blockchainName: string, tokenAddress: string, amount: string, privateKey: string) {
-    const { bridgeContract, } = this.getAndConnectBridgeContract(blockchainName, privateKey);
+  public async release(blockchainName: string, tokenAddress: string, amount: string, privateKey: string, nonce: string, signature: string) {
+    const { bridgeContract } = this.getAndConnectBridgeContract(blockchainName, privateKey);
     const { tokenSymbol } = await this.getTokenNameAndSymbol(blockchainName, tokenAddress, privateKey);
     console.log(`Releasing ${amount}${tokenSymbol} from ${blockchainName}'s bridge, bridge's address: ${this.getBridgeAddress(blockchainName)}...`);
-    const transaction = await bridgeContract.release(tokenAddress, amount);
+    const transaction = await bridgeContract.release(tokenAddress, amount, nonce, signature);
     await transaction.wait();
     console.log(`Successfully released ${amount}${tokenSymbol} from the ${blockchainName}'s bridge!`);
   }
@@ -175,21 +179,24 @@ export class BlockchainService implements OnModuleInit {
     console.log(`User with address: ${amountOwner} has successfully locked ${amount}${tokenSymbol} to ${blockchainName}'s bridge!`);
 
     const oppositeBlockchainName = this.getOppositeBlockchain(blockchainName);
+    const bridgeOwner = this.blockchains[oppositeBlockchainName].defaultWallet;
     const oppositeBridgeContract = this.blockchains[oppositeBlockchainName].bridgeContract.connect(this.blockchains[oppositeBlockchainName].defaultWallet);
-    console.log(`Adding tokens to be claimed in ${oppositeBlockchainName}'s bridge for user with address: ${amountOwner}...`);
-    const tx = await oppositeBridgeContract.addClaim(amountOwner, lockedTokenAddress, amount, tokenName, tokenSymbol);
-    await tx.wait(5);
-    console.log(`Successfully added amount to be claimed for wrapper of ${tokenName}: ${amount}${tokenSymbol}`);
+    // console.log(`Adding tokens to be claimed in ${oppositeBlockchainName}'s bridge for user with address: ${amountOwner}...`);
+    // const tx = await oppositeBridgeContract.addClaim(amountOwner, lockedTokenAddress, amount, tokenName, tokenSymbol);
+    // await tx.wait(5);
+    // console.log(`Successfully added amount to be claimed for wrapper of ${tokenName}: ${amount}${tokenSymbol}`);
 
-    console.log(`Obtaining ${tokenName}'s wrapper token...`)
-    const wrapperTokenAddress = await oppositeBridgeContract.baseToWrapperToken(lockedTokenAddress);
-    console.log(`Wrapper token address: ${wrapperTokenAddress}`);
+    // signMessage(bridgeOwner, ['address', 'address', 'uint256', 'uint256'], [amountOwner, lockedTokenAddress, amount, nonce]);
 
-    const { tokenName: wrapperTokenName, tokenSymbol: wrapperTokenSymbol } = await this.getTokenNameAndSymbol(oppositeBlockchainName, wrapperTokenAddress, null);
+    // console.log(`Obtaining ${tokenName}'s wrapper token...`)
+    // const wrapperTokenAddress = await oppositeBridgeContract.baseToWrapperToken(lockedTokenAddress);
+    // console.log(`Wrapper token address: ${wrapperTokenAddress}`);
 
-    console.log(`Wrapper token name: ${wrapperTokenName}`);
-    console.log(`Wrapper token amount added: ${amount}${wrapperTokenSymbol}`);
-    console.log(`All wrapper token amount to be claimed: ${await oppositeBridgeContract.claimableFor(amountOwner, wrapperTokenAddress)}${wrapperTokenSymbol}`);
+    // const { tokenName: wrapperTokenName, tokenSymbol: wrapperTokenSymbol } = await this.getTokenNameAndSymbol(oppositeBlockchainName, wrapperTokenAddress, null);
+
+    // console.log(`Wrapper token name: ${wrapperTokenName}`);
+    // console.log(`Wrapper token amount added: ${amount}${wrapperTokenSymbol}`);
+    // console.log(`All wrapper token amount to be claimed: ${await oppositeBridgeContract.claimableFor(amountOwner, wrapperTokenAddress)}${wrapperTokenSymbol}`);
   }
 
   public async handleTokenClaimedEvent(blockchainName: string, amountOwner: string, claimedTokenAddress: string, amount: BigNumber) {
@@ -211,10 +218,10 @@ export class BlockchainService implements OnModuleInit {
 
     const oppositeBridgeContract = this.blockchains[oppositeBlockchainName].bridgeContract.connect(this.blockchains[oppositeBlockchainName].defaultWallet);
     console.log(`Adding tokens to be released in ${oppositeBlockchainName}'s bridge for user with address: ${amountOwner}...`);
-    const tx = await oppositeBridgeContract.addRelease(amountOwner, sourceTokenAddress, amount);
-    await tx.wait(5);
-    console.log(`Successfully added amount to be released for ${tokenName}: ${amount}${tokenSymbol}`);
-    console.log(`All token amount to be released for user ${amountOwner}: ${await oppositeBridgeContract.releasableFor(amountOwner, sourceTokenAddress)}${tokenSymbol}`);
+    // const tx = await oppositeBridgeContract.addRelease(amountOwner, sourceTokenAddress, amount);
+    // await tx.wait(5);
+    // console.log(`Successfully added amount to be released for ${tokenName}: ${amount}${tokenSymbol}`);
+    // console.log(`All token amount to be released for user ${amountOwner}: ${await oppositeBridgeContract.releasableFor(amountOwner, sourceTokenAddress)}${tokenSymbol}`);
   }
 
   public async handleTokenReleasedEvent(blockchainName: string, amountOwner: string, releasedTokenAddress: string, amount: BigNumber) {

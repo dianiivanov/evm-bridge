@@ -55,12 +55,13 @@ export class BridgeIndexer implements OnModuleInit {
     }
 
     async main() {
-        this.bridgeContract1.on("TokenLocked", async (amountOwner, lockedTokenAddress, amount, event) => {
+        this.bridgeContract1.on("TokenLocked", async (amountOwner, lockedTokenAddress, amount, nonce, event) => {
+            console.log("nonce:", nonce);
             this.blockchainService.handleTokenLockedEvent(this.BLOCKHAIN_NAME_1, amountOwner, lockedTokenAddress, amount);
             this.eventService.saveTokenLocked(new TokenLocked(amountOwner, lockedTokenAddress, amount, this.BLOCKHAIN_NAME_1));
         });
 
-        this.bridgeContract2.on("TokenLocked", async (amountOwner, lockedTokenAddress, amount, event) => {
+        this.bridgeContract2.on("TokenLocked", async (amountOwner, lockedTokenAddress, amount, nonce, event) => {
             this.blockchainService.handleTokenLockedEvent(this.BLOCKHAIN_NAME_2, amountOwner, lockedTokenAddress, amount);
             this.eventService.saveTokenLocked(new TokenLocked(amountOwner, lockedTokenAddress, amount, this.BLOCKHAIN_NAME_2));
         });
